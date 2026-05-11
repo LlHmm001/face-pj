@@ -135,7 +135,7 @@ def search_employees(
     )
     return {"results": [schemas.EmployeeResponse.model_validate(e) for e in employees]}
 
-def _verify_matches(input_embedding, employees, threshold, min_gap,
+def _verify_matches(input_embedding, employees, threshold, gap_ratio,
                    employment_status, department, industry, cutoff_date):
     scored = []
     for employee in employees:
@@ -156,21 +156,25 @@ def _verify_matches(input_embedding, employees, threshold, min_gap,
 
     scored.sort(key=lambda x: x[1], reverse=True)
 
+    if not scored or scored[0][1] < threshold:
+        return []
+
+    top = scored[0][1]
+    second = scored[1][1] if len(scored) > 1 else 0.0
+
+    if second > 0 and top / second < gap_ratio:
+        return []
+
     results = []
-    for i, (emp, sim) in enumerate(scored):
+    for emp, sim in scored:
         if sim < threshold:
             break
-        second_best = scored[1][1] if len(scored) > 1 else 0.0
-        gap = sim - second_best
-        verified = gap >= min_gap
         results.append({
             "employee_id": emp.employee_id,
             "name": emp.name,
             "department": emp.department,
             "title": emp.title,
             "similarity": sim,
-            "confidence": round(gap, 4),
-            "verified": verified,
             "photo_path": emp.photo_path,
             "employment_status": emp.employment_status,
             "hire_date": emp.hire_date
@@ -180,8 +184,8 @@ def _verify_matches(input_embedding, employees, threshold, min_gap,
 @router.post("/face-match/", response_model=list[schemas.FaceMatchResult])
 def face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.7,
-    min_gap: float = 0.05,
+    threshold: float = 0.85,
+    gap_ratio: float = 1.15,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -207,7 +211,7 @@ def face_match(
         if min_service_years:
             cutoff_date = date_cls.today().replace(year=date_cls.today().year - min_service_years)
 
-        results = _verify_matches(input_embedding, employees, threshold, min_gap,
+        results = _verify_matches(input_embedding, employees, threshold, gap_ratio,
                                   employment_status, department, industry, cutoff_date)
         return results[:5]
     finally:
@@ -217,8 +221,8 @@ def face_match(
 @router.post("/batch-face-match/")
 def batch_face_match(
     photos: list[UploadFile] = File(...),
-    threshold: float = 0.7,
-    min_gap: float = 0.05,
+    threshold: float = 0.85,
+    gap_ratio: float = 1.15,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -257,7 +261,7 @@ def batch_face_match(
                 })
                 continue
 
-            matches = _verify_matches(input_embedding, employees, threshold, min_gap,
+            matches = _verify_matches(input_embedding, employees, threshold, gap_ratio,
                                       employment_status, department, industry, cutoff_date)
             results.append({
                 "filename": photo.filename,
@@ -276,8 +280,8 @@ def batch_face_match(
 @router.post("/multi-face-match/")
 def multi_face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.75,
-    min_gap: float = 0.05,
+    threshold: float = 0.90,
+    gap_ratio: float = 1.15,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -305,7 +309,7 @@ def multi_face_match(
 
         face_results = []
         for fi, fd in enumerate(face_data):
-            matches = _verify_matches(fd["embedding"], employees, threshold, min_gap,
+            matches = _verify_matches(fd["embedding"], employees, threshold, gap_ratio,
                                       employment_status, department, industry, cutoff_date)
             face_results.append({
                 "face_index": fi + 1,

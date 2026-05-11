@@ -78,8 +78,8 @@ class FaceRecognitionService:
                 return 0.0
 
             dot = float(np.dot(emb1, emb2))
-            similarity = (dot + 1.0) / 2.0
-            return max(0.0, min(1.0, similarity))
+            sim = max(0.0, dot)
+            return float(sim)
         except Exception as e:
             print(f"Error comparing faces: {e}")
             return 0.0
@@ -90,7 +90,7 @@ class FaceRecognitionService:
             emb2 = self.extract_embedding(img2_path)
             if emb1 and emb2:
                 similarity = self.compare_faces(emb1, emb2)
-                return similarity > 0.7, 1 - similarity, similarity
+                return similarity > 0.85, 1 - similarity, similarity
             return False, 1.0, 0.0
         except Exception as e:
             print(f"Error verifying face: {e}")
