@@ -386,10 +386,10 @@
             color: white;
             border-color: transparent;
         }
-        .upload-area {
+        #face-match .upload-area {
             display: none;
         }
-        .upload-area.active {
+        #face-match .upload-area.active {
             display: block;
         }
         .batch-photo-item {
@@ -751,24 +751,30 @@
 
         function displayFaceResults(results) {
             const container = document.getElementById('face-results');
-            if (results.length === 0) {
-                container.innerHTML = '<p style="color: #666;">未找到匹配的员工，可尝试降低相似度阈值或放宽筛选条件</p>';
+            if (!results || results.length === 0) {
+                container.innerHTML = '<p style="color:#666;">未找到匹配的员工，可尝试降低相似度阈值或放宽筛选条件</p>';
                 return;
             }
             
             let html = '<h3>匹配结果（按相似度排序）</h3>';
             results.forEach(result => {
                 const serviceYears = result.hire_date ? calcServiceYears(result.hire_date) : null;
+                const verifiedIcon = result.verified ? '✅' : '⚠️';
+                const verifiedLabel = result.verified ? '已确认' : '待确认';
+                const verifiedColor = result.verified ? '#2e7d32' : '#e65100';
                 html += `
                     <div class="employee-card">
                         <img class="employee-photo" src="${result.photo_path ? result.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/80'}" alt="${result.name}">
                         <div class="employee-info">
-                            <h4>${result.name}</h4>
+                            <h4>${result.name} <span style="font-size:12px;color:${verifiedColor};">${verifiedIcon} ${verifiedLabel}</span></h4>
                             <p>员工ID: ${result.employee_id}</p>
                             <p>部门: ${result.department || '-'} | 职位: ${result.title || '-'}</p>
                             <p>入职: ${result.hire_date || '-'} | 工龄: ${serviceYears !== null ? serviceYears + '年' : '-'} | 状态: <span style="color:${result.employment_status === '离职' ? '#ef5350' : '#2e7d32'};font-weight:600;">${result.employment_status || '-'}</span></p>
                         </div>
-                        <div class="similarity">相似度: ${(result.similarity * 100).toFixed(1)}%</div>
+                        <div style="text-align:right;">
+                            <div class="similarity">${(result.similarity * 100).toFixed(1)}%</div>
+                            <div style="font-size:11px;color:#999;margin-top:4px;">确信度: ${((result.confidence || 0) * 100).toFixed(1)}%</div>
+                        </div>
                     </div>
                 `;
             });
@@ -836,13 +842,18 @@
                     html += '<div style="font-size:13px;color:#666;">找到 ' + r.matches.length + ' 个可能匹配</div>';
                     r.matches.forEach(m => {
                         const sy = m.hire_date ? calcServiceYears(m.hire_date) : null;
+                        const vIcon = m.verified ? '✅' : '⚠️';
+                        const vColor = m.verified ? '#2e7d32' : '#e65100';
                         html += '<div class="employee-card" style="margin:8px 0;">' +
                             '<img class="employee-photo" src="' + (m.photo_path ? m.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/50') + '" alt="' + m.name + '" style="width:50px;height:50px;">' +
                             '<div class="employee-info">' +
-                            '<h4>' + m.name + ' <span style="font-size:12px;color:#666;">(' + m.employee_id + ')</span></h4>' +
+                            '<h4>' + m.name + ' <span style="font-size:12px;color:#666;">(' + m.employee_id + ')</span> <span style="font-size:11px;color:' + vColor + ';">' + vIcon + '</span></h4>' +
                             '<p style="font-size:12px;">' + (m.department || '-') + ' | ' + (m.title || '-') + ' | 入职:' + (m.hire_date || '-') + ' | 工龄:' + (sy !== null ? sy + '年' : '-') + ' | <span style="color:' + (m.employment_status === '离职' ? '#ef5350' : '#2e7d32') + ';font-weight:600;">' + (m.employment_status || '-') + '</span></p>' +
                             '</div>' +
+                            '<div style="text-align:right;">' +
                             '<div class="similarity" style="font-size:12px;padding:4px 10px;">' + (m.similarity * 100).toFixed(1) + '%</div>' +
+                            '<div style="font-size:11px;color:#999;">确信度:' + ((m.confidence || 0) * 100).toFixed(1) + '%</div>' +
+                            '</div>' +
                             '</div>';
                     });
                 }
@@ -886,33 +897,44 @@
                 return;
             }
 
-            let html = '<h3>多人脸识别结果（检测到 ' + data.total_faces + ' 张人脸）</h3>';
+            let html = '<h3>多人脸识别结果</h3>';
+            html += '<div class="result-box ' + (data.known_faces > 0 ? 'success' : 'warning') + '">检测到 <b>' + data.total_faces + '</b> 张人脸，其中 <b>' + data.known_faces + '</b> 张已识别，<b>' + data.unknown_faces + '</b> 张未入库</div>';
+
             data.faces.forEach(face => {
                 html += '<div class="batch-photo-item">';
-                html += '<h4><span class="face-index-badge">人脸 #' + face.face_index + '</span> 位置: (' + face.bbox.x + ', ' + face.bbox.y + ') 尺寸: ' + face.bbox.w + 'x' + face.bbox.h + '</h4>';
-                if (face.top_match) {
-                    const m = face.top_match;
-                    const sy = m.hire_date ? calcServiceYears(m.hire_date) : null;
-                    html += '<div class="employee-card" style="margin:8px 0;">' +
-                        '<img class="employee-photo" src="' + (m.photo_path ? m.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/50') + '" alt="' + m.name + '" style="width:50px;height:50px;">' +
-                        '<div class="employee-info">' +
-                        '<h4>' + m.name + ' <span style="font-size:12px;color:#666;">(' + m.employee_id + ')</span></h4>' +
-                        '<p style="font-size:12px;">' + (m.department || '-') + ' | ' + (m.title || '-') + ' | 入职:' + (m.hire_date || '-') + ' | 工龄:' + (sy !== null ? sy + '年' : '-') + ' | <span style="color:' + (m.employment_status === '离职' ? '#ef5350' : '#2e7d32') + ';font-weight:600;">' + (m.employment_status || '-') + '</span></p>' +
-                        '</div>' +
-                        '<div class="similarity" style="font-size:12px;padding:4px 10px;">' + (m.similarity * 100).toFixed(1) + '%</div>' +
-                        '</div>';
-                    if (face.matches.length > 1) {
-                        html += '<details style="margin-left:60px;margin-top:8px;"><summary style="cursor:pointer;color:#667eea;">查看其他 ' + (face.matches.length - 1) + ' 个可能匹配</summary>';
-                        for (let i = 1; i < face.matches.length; i++) {
-                            const m2 = face.matches[i];
-                            const sy2 = m2.hire_date ? calcServiceYears(m2.hire_date) : null;
-                            html += '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f0f0f0;">' +
-                                m2.name + ' (' + m2.employee_id + ') | ' + (m2.department || '-') + ' | 入职:' + (m2.hire_date || '-') + ' | 工龄:' + (sy2 !== null ? sy2 + '年' : '-') + ' | <span style="color:' + (m2.employment_status === '离职' ? '#ef5350' : '#2e7d32') + ';">' + (m2.employment_status || '-') + '</span> | 相似度:' + (m2.similarity * 100).toFixed(1) + '%</div>';
-                        }
-                        html += '</details>';
-                    }
+                if (face.is_unknown) {
+                    html += '<h4><span class="face-index-badge" style="background:#e0e0e0;color:#666;">人脸 #' + face.face_index + ' ⚠️ 未入库</span> 位置: (' + face.bbox.x + ', ' + face.bbox.y + ')</h4>';
+                    html += '<p style="color:#999;margin-left:10px;">此人不在员工库中，未匹配到任何人员</p>';
                 } else {
-                    html += '<p style="color:#999;margin-left:10px;">未匹配到员工</p>';
+                    const m = face.top_match;
+                    const verifiedIcon = m.verified ? '✅' : '⚠️';
+                    const verifiedLabel = m.verified ? '已确认' : '待确认';
+                    const verifiedColor = m.verified ? '#2e7d32' : '#e65100';
+                    html += '<h4><span class="face-index-badge">人脸 #' + face.face_index + '</span> ' + verifiedIcon + ' ' + verifiedLabel + ' | 位置: (' + face.bbox.x + ', ' + face.bbox.y + ') ' + face.bbox.w + 'x' + face.bbox.h + '</h4>';
+                    if (m) {
+                        const sy = m.hire_date ? calcServiceYears(m.hire_date) : null;
+                        html += '<div class="employee-card" style="margin:8px 0;">' +
+                            '<img class="employee-photo" src="' + (m.photo_path ? m.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/50') + '" alt="' + m.name + '" style="width:50px;height:50px;">' +
+                            '<div class="employee-info">' +
+                            '<h4>' + m.name + ' <span style="font-size:12px;color:#666;">(' + m.employee_id + ')</span></h4>' +
+                            '<p style="font-size:12px;">' + (m.department || '-') + ' | ' + (m.title || '-') + ' | 入职:' + (m.hire_date || '-') + ' | 工龄:' + (sy !== null ? sy + '年' : '-') + ' | <span style="color:' + (m.employment_status === '离职' ? '#ef5350' : '#2e7d32') + ';font-weight:600;">' + (m.employment_status || '-') + '</span></p>' +
+                            '</div>' +
+                            '<div style="text-align:right;">' +
+                            '<div class="similarity" style="font-size:12px;padding:4px 10px;">' + (m.similarity * 100).toFixed(1) + '%</div>' +
+                            '<div style="font-size:11px;color:#999;margin-top:2px;">确信度: ' + ((m.confidence || 0) * 100).toFixed(1) + '%</div>' +
+                            '</div>' +
+                            '</div>';
+                        if (face.matches.length > 1) {
+                            html += '<details style="margin-left:60px;margin-top:8px;"><summary style="cursor:pointer;color:#667eea;">查看其他 ' + (face.matches.length - 1) + ' 个可能匹配</summary>';
+                            for (let i = 1; i < face.matches.length; i++) {
+                                const m2 = face.matches[i];
+                                const sy2 = m2.hire_date ? calcServiceYears(m2.hire_date) : null;
+                                html += '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f0f0f0;">' +
+                                    m2.name + ' (' + m2.employee_id + ') | ' + (m2.department || '-') + ' | 入职:' + (m2.hire_date || '-') + ' | 工龄:' + (sy2 !== null ? sy2 + '年' : '-') + ' | <span style="color:' + (m2.employment_status === '离职' ? '#ef5350' : '#2e7d32') + ';">' + (m2.employment_status || '-') + '</span> | 相似度:' + (m2.similarity * 100).toFixed(1) + '%' + (m2.verified ? ' ✅' : '') + '</div>';
+                            }
+                            html += '</details>';
+                        }
+                    }
                 }
                 html += '</div>';
             });

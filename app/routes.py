@@ -135,10 +135,53 @@ def search_employees(
     )
     return {"results": [schemas.EmployeeResponse.model_validate(e) for e in employees]}
 
+def _verify_matches(input_embedding, employees, threshold, min_gap,
+                   employment_status, department, industry, cutoff_date):
+    scored = []
+    for employee in employees:
+        if not employee.face_embedding:
+            continue
+        if employment_status and employee.employment_status != employment_status:
+            continue
+        if department and employee.department != department:
+            continue
+        if industry and employee.industry != industry:
+            continue
+        if cutoff_date and employee.hire_date:
+            if employee.hire_date > cutoff_date:
+                continue
+
+        sim = face_service.compare_faces(input_embedding, employee.face_embedding)
+        scored.append((employee, round(float(sim), 4)))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    results = []
+    for i, (emp, sim) in enumerate(scored):
+        if sim < threshold:
+            break
+        second_best = scored[1][1] if len(scored) > 1 else 0.0
+        gap = sim - second_best
+        verified = gap >= min_gap
+        results.append({
+            "employee_id": emp.employee_id,
+            "name": emp.name,
+            "department": emp.department,
+            "title": emp.title,
+            "similarity": sim,
+            "confidence": round(gap, 4),
+            "verified": verified,
+            "photo_path": emp.photo_path,
+            "employment_status": emp.employment_status,
+            "hire_date": emp.hire_date
+        })
+    return results
+
 @router.post("/face-match/", response_model=list[schemas.FaceMatchResult])
 def face_match(
     photo: UploadFile = File(...),
     threshold: float = 0.7,
+    min_gap: float = 0.05,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -155,45 +198,18 @@ def face_match(
         
         input_embedding = face_service.extract_embedding(temp_path)
         if not input_embedding:
-            raise HTTPException(status_code=400, detail="无法从照片中提取人脸特征")
-        
+            return []
+
         employees = crud.get_all_employees_with_embedding(db)
-        matches = []
 
         from datetime import date as date_cls
         cutoff_date = None
         if min_service_years:
             cutoff_date = date_cls.today().replace(year=date_cls.today().year - min_service_years)
-        
-        for employee in employees:
-            if not employee.face_embedding:
-                continue
-            
-            if employment_status and employee.employment_status != employment_status:
-                continue
-            if department and employee.department != department:
-                continue
-            if industry and employee.industry != industry:
-                continue
-            if cutoff_date and employee.hire_date:
-                if employee.hire_date > cutoff_date:
-                    continue
-            
-            similarity = face_service.compare_faces(input_embedding, employee.face_embedding)
-            if similarity >= threshold:
-                matches.append({
-                    "employee_id": employee.employee_id,
-                    "name": employee.name,
-                    "department": employee.department,
-                    "title": employee.title,
-                    "similarity": similarity,
-                    "photo_path": employee.photo_path,
-                    "employment_status": employee.employment_status,
-                    "hire_date": employee.hire_date
-                })
-        
-        matches.sort(key=lambda x: x["similarity"], reverse=True)
-        return matches[:10]
+
+        results = _verify_matches(input_embedding, employees, threshold, min_gap,
+                                  employment_status, department, industry, cutoff_date)
+        return results[:5]
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -202,6 +218,7 @@ def face_match(
 def batch_face_match(
     photos: list[UploadFile] = File(...),
     threshold: float = 0.7,
+    min_gap: float = 0.05,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -240,34 +257,8 @@ def batch_face_match(
                 })
                 continue
 
-            matches = []
-            for employee in employees:
-                if not employee.face_embedding:
-                    continue
-                if employment_status and employee.employment_status != employment_status:
-                    continue
-                if department and employee.department != department:
-                    continue
-                if industry and employee.industry != industry:
-                    continue
-                if cutoff_date and employee.hire_date:
-                    if employee.hire_date > cutoff_date:
-                        continue
-
-                similarity = face_service.compare_faces(input_embedding, employee.face_embedding)
-                if similarity >= threshold:
-                    matches.append({
-                        "employee_id": employee.employee_id,
-                        "name": employee.name,
-                        "department": employee.department,
-                        "title": employee.title,
-                        "similarity": round(float(similarity), 4),
-                        "photo_path": employee.photo_path,
-                        "employment_status": employee.employment_status,
-                        "hire_date": employee.hire_date
-                    })
-
-            matches.sort(key=lambda x: x["similarity"], reverse=True)
+            matches = _verify_matches(input_embedding, employees, threshold, min_gap,
+                                      employment_status, department, industry, cutoff_date)
             results.append({
                 "filename": photo.filename,
                 "face_count": face_count,
@@ -285,7 +276,8 @@ def batch_face_match(
 @router.post("/multi-face-match/")
 def multi_face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.7,
+    threshold: float = 0.75,
+    min_gap: float = 0.05,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -313,43 +305,22 @@ def multi_face_match(
 
         face_results = []
         for fi, fd in enumerate(face_data):
-            face_matches = []
-            for employee in employees:
-                if not employee.face_embedding:
-                    continue
-                if employment_status and employee.employment_status != employment_status:
-                    continue
-                if department and employee.department != department:
-                    continue
-                if industry and employee.industry != industry:
-                    continue
-                if cutoff_date and employee.hire_date:
-                    if employee.hire_date > cutoff_date:
-                        continue
-
-                similarity = face_service.compare_faces(fd["embedding"], employee.face_embedding)
-                if similarity >= threshold:
-                    face_matches.append({
-                        "employee_id": employee.employee_id,
-                        "name": employee.name,
-                        "department": employee.department,
-                        "title": employee.title,
-                        "similarity": round(float(similarity), 4),
-                        "photo_path": employee.photo_path,
-                        "employment_status": employee.employment_status,
-                        "hire_date": employee.hire_date
-                    })
-
-            face_matches.sort(key=lambda x: x["similarity"], reverse=True)
+            matches = _verify_matches(fd["embedding"], employees, threshold, min_gap,
+                                      employment_status, department, industry, cutoff_date)
             face_results.append({
                 "face_index": fi + 1,
                 "bbox": fd["bbox"],
-                "top_match": face_matches[0] if face_matches else None,
-                "matches": face_matches[:5]
+                "top_match": matches[0] if matches else None,
+                "matches": matches[:5],
+                "is_unknown": len(matches) == 0
             })
+
+        known = [f for f in face_results if not f["is_unknown"]]
 
         return {
             "total_faces": len(face_data),
+            "known_faces": len(known),
+            "unknown_faces": len(face_data) - len(known),
             "faces": face_results
         }
     finally:
