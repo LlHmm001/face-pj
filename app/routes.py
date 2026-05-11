@@ -283,8 +283,8 @@ def batch_face_match(
 @router.post("/multi-face-match/")
 def multi_face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.50,
-    gap_ratio: float = 1.3,
+    threshold: float = 0.55,
+    gap_ratio: float = 1.5,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -317,7 +317,7 @@ def multi_face_match(
 
             top_sim = matches[0]["similarity"] if matches else 0.0
 
-            if top_sim < 0.50:
+            if top_sim < 0.55:
                 matches = []
 
             face_results.append({

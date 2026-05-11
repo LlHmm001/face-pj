@@ -104,15 +104,6 @@ class FaceRecognitionService:
         return faces
 
     def _rec_embedding(self, face_img):
-        if face_img.shape[0] < 64 or face_img.shape[1] < 64:
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            if len(face_img.shape) == 3:
-                gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
-            else:
-                gray = face_img
-            face_img = clahe.apply(gray)
-            face_img = cv2.cvtColor(face_img, cv2.COLOR_GRAY2BGR)
-
         face_resized = cv2.resize(face_img, (112, 112))
         blob = (face_resized.astype(np.float32) - 127.5) / 128.0
         blob = np.expand_dims(np.transpose(blob, (2, 0, 1)), axis=0)
@@ -131,15 +122,8 @@ class FaceRecognitionService:
             return embeddings
 
         faces = self._detect_faces(image)
-        h, w = image.shape[:2]
         for face in faces:
             x1, y1, x2, y2 = face["bbox"]
-            pad_w = int((x2 - x1) * 0.15)
-            pad_h = int((y2 - y1) * 0.15)
-            x1 = max(0, x1 - pad_w)
-            y1 = max(0, y1 - pad_h)
-            x2 = min(w, x2 + pad_w)
-            y2 = min(h, y2 + pad_h)
             face_roi = image[y1:y2, x1:x2]
             embedding = self._rec_embedding(face_roi)
             embeddings.append({
