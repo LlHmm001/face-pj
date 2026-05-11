@@ -10,15 +10,26 @@ class FaceRecognitionService:
     def __init__(self):
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_cascade = cv2.CascadeClassifier(cascade_path)
+        self.win_size = (64, 64)
+        self.hog = cv2.HOGDescriptor(
+            _winSize=self.win_size,
+            _blockSize=(16, 16),
+            _blockStride=(8, 8),
+            _cellSize=(8, 8),
+            _nbins=9
+        )
 
     def _image_to_cv2(self, image_path):
-        image = cv2.imread(image_path)
-        return image
+        return cv2.imread(image_path)
 
-    def _cv2_to_embedding(self, gray_face):
-        resized = cv2.resize(gray_face, (100, 100))
-        pixels = resized.flatten().astype(np.float32) / 255.0
-        return pixels.tolist()
+    def _hog_embedding(self, face):
+        resized = cv2.resize(face, self.win_size)
+        hog_features = self.hog.compute(resized)
+        vec = hog_features.flatten().astype(np.float32)
+        norm = np.linalg.norm(vec)
+        if norm > 0:
+            vec = vec / norm
+        return vec.tolist()
 
     def extract_embeddings(self, image_path):
         embeddings = []
@@ -33,7 +44,7 @@ class FaceRecognitionService:
 
         for (x, y, w, h) in faces:
             face_roi = gray[y:y + h, x:x + w]
-            embedding = self._cv2_to_embedding(face_roi)
+            embedding = self._hog_embedding(face_roi)
             embeddings.append({
                 "embedding": embedding,
                 "bbox": {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
@@ -49,9 +60,8 @@ class FaceRecognitionService:
         if image is None:
             return None
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        resized = cv2.resize(gray, (100, 100))
-        pixels = resized.flatten().astype(np.float32) / 255.0
-        return json.dumps(pixels.tolist())
+        embedding = self._hog_embedding(gray)
+        return json.dumps(embedding)
 
     def compare_faces(self, embedding1, embedding2):
         try:
@@ -67,9 +77,9 @@ class FaceRecognitionService:
             if len(emb1) != len(emb2):
                 return 0.0
 
-            diff_sum = float(np.sum((emb1 - emb2) ** 2))
-            similarity = max(0.0, 1.0 - (diff_sum / len(emb1)))
-            return float(similarity)
+            dot = float(np.dot(emb1, emb2))
+            similarity = (dot + 1.0) / 2.0
+            return max(0.0, min(1.0, similarity))
         except Exception as e:
             print(f"Error comparing faces: {e}")
             return 0.0
