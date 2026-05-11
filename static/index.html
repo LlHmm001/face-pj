@@ -434,7 +434,6 @@
             <div class="mode-toggle">
                 <button class="mode-btn active" onclick="switchMode('single')">📸 单张检索</button>
                 <button class="mode-btn" onclick="switchMode('batch')">📁 多图批量</button>
-                <button class="mode-btn" onclick="switchMode('multi')">👥 多人脸识别</button>
             </div>
             <div class="filter-bar">
                 <div class="filter-item">
@@ -478,12 +477,6 @@
                 <div>📁</div>
                 <p>点击选择多张照片，或拖拽整个文件夹</p>
                 <p style="font-size: 12px; color: #999;">支持同时上传多张照片进行批量检索</p>
-            </div>
-            <div id="upload-area-multi" class="upload-area" onclick="document.getElementById('multi-face-file').click()" ondragover="event.preventDefault(); this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="event.preventDefault(); this.classList.remove('dragover'); handleMultiDrop(event)">
-                <input type="file" id="multi-face-file" accept="image/*" style="display: none;" onchange="handleMultiUpload(event)">
-                <div>👥</div>
-                <p>上传一张合照，识别照片中的多张人脸</p>
-                <p style="font-size: 12px; color: #999;">系统自动检测并匹配每张人脸</p>
             </div>
             <div class="form-group">
                 <label for="threshold">相似度阈值</label>
@@ -676,7 +669,6 @@
 
             document.getElementById('upload-area-single').classList.toggle('active', mode === 'single');
             document.getElementById('upload-area-batch').classList.toggle('active', mode === 'batch');
-            document.getElementById('upload-area-multi').classList.toggle('active', mode === 'multi');
             document.getElementById('face-results').innerHTML = '';
         }
 
@@ -694,13 +686,6 @@
             }
         }
 
-        function handleMultiDrop(event) {
-            const files = event.dataTransfer.files;
-            if (files.length > 0) {
-                processMultiFile(files[0]);
-            }
-        }
-
         function handleFaceUpload(event) {
             const file = event.target.files[0];
             if (file) {
@@ -712,13 +697,6 @@
             const files = event.target.files;
             if (files.length > 0) {
                 processBatchFiles(files);
-            }
-        }
-
-        function handleMultiUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                processMultiFile(file);
             }
         }
 
@@ -847,80 +825,6 @@
                             '<div class="similarity" style="font-size:12px;padding:4px 10px;">' + (m.similarity * 100).toFixed(1) + '%</div>' +
                             '</div>';
                     });
-                }
-                html += '</div>';
-            });
-            container.innerHTML = html;
-        }
-
-        async function processMultiFile(file) {
-            const formData = new FormData();
-            formData.append('photo', file);
-            formData.append('threshold', document.getElementById('threshold').value);
-
-            const status = document.getElementById('face-status').value;
-            const department = document.getElementById('face-department').value;
-            const industry = document.getElementById('face-industry').value;
-            const serviceYears = document.getElementById('face-service-years').value;
-            if (status) formData.append('employment_status', status);
-            if (department) formData.append('department', department);
-            if (industry) formData.append('industry', industry);
-            if (serviceYears) formData.append('min_service_years', serviceYears);
-
-            document.getElementById('face-results').innerHTML = '<div class="result-box info">正在检测人脸并匹配...</div>';
-
-            try {
-                const response = await fetch(`${API_BASE}/api/multi-face-match/`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                displayMultiFaceResults(data);
-            } catch (error) {
-                showToast('检索失败：' + error.message, 'error');
-            }
-        }
-
-        function displayMultiFaceResults(data) {
-            const container = document.getElementById('face-results');
-            if (!data.faces || data.faces.length === 0) {
-                container.innerHTML = '<p style="color:#666;">未检测到人脸</p>';
-                return;
-            }
-
-            let html = '<h3>多人脸识别结果</h3>';
-            html += '<div class="result-box ' + (data.known_faces > 0 ? 'success' : 'warning') + '">检测到 <b>' + data.total_faces + '</b> 张人脸，其中 <b>' + data.known_faces + '</b> 张已识别，<b>' + data.unknown_faces + '</b> 张不在库中</div>';
-            html += '<p style="font-size:12px;color:#999;margin-top:4px;">多人脸识别使用严格校验：相似度 ≥ 55% 且明显高于次优才确认匹配。</p>';
-
-            data.faces.forEach(face => {
-                html += '<div class="batch-photo-item">';
-                if (face.is_unknown) {
-                    html += '<h4><span class="face-index-badge" style="background:#e0e0e0;color:#666;">人脸 #' + face.face_index + ' ⚠️ 未入库</span> 位置: (' + face.bbox.x + ', ' + face.bbox.y + ')</h4>';
-                    html += '<p style="color:#999;margin-left:10px;">此人不在员工库中，未匹配到任何人员</p>';
-                } else {
-                    const m = face.top_match;
-                    html += '<h4><span class="face-index-badge">人脸 #' + face.face_index + '</span> | 位置: (' + face.bbox.x + ', ' + face.bbox.y + ') ' + face.bbox.w + 'x' + face.bbox.h + '</h4>';
-                    if (m) {
-                        const sy = m.hire_date ? calcServiceYears(m.hire_date) : null;
-                        html += '<div class="employee-card" style="margin:8px 0;">' +
-                            '<img class="employee-photo" src="' + (m.photo_path ? m.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/50') + '" alt="' + m.name + '" style="width:50px;height:50px;">' +
-                            '<div class="employee-info">' +
-                            '<h4>' + m.name + ' <span style="font-size:12px;color:#666;">(' + m.employee_id + ')</span></h4>' +
-                            '<p style="font-size:12px;">' + (m.department || '-') + ' | ' + (m.title || '-') + ' | 入职:' + (m.hire_date || '-') + ' | 工龄:' + (sy !== null ? sy + '年' : '-') + ' | <span style="color:' + (m.employment_status === '离职' ? '#ef5350' : '#2e7d32') + ';font-weight:600;">' + (m.employment_status || '-') + '</span></p>' +
-                            '</div>' +
-                            '<div class="similarity" style="font-size:12px;padding:4px 10px;">' + (m.similarity * 100).toFixed(1) + '%</div>' +
-                            '</div>';
-                        if (face.matches.length > 1) {
-                            html += '<details style="margin-left:60px;margin-top:8px;"><summary style="cursor:pointer;color:#667eea;">查看其他 ' + (face.matches.length - 1) + ' 个可能匹配</summary>';
-                            for (let i = 1; i < face.matches.length; i++) {
-                                const m2 = face.matches[i];
-                                const sy2 = m2.hire_date ? calcServiceYears(m2.hire_date) : null;
-                                html += '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f0f0f0;">' +
-                                    m2.name + ' (' + m2.employee_id + ') | ' + (m2.department || '-') + ' | 入职:' + (m2.hire_date || '-') + ' | 工龄:' + (sy2 !== null ? sy2 + '年' : '-') + ' | <span style="color:' + (m2.employment_status === '离职' ? '#ef5350' : '#2e7d32') + ';">' + (m2.employment_status || '-') + '</span> | 相似度:' + (m2.similarity * 100).toFixed(1) + '%</div>';
-                            }
-                            html += '</details>';
-                        }
-                    }
                 }
                 html += '</div>';
             });

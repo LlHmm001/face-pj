@@ -9,35 +9,16 @@ import io
 
 MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
 
-SRC_POINTS = np.array([
-    [38.2946, 51.6963],
-    [73.5318, 51.5014],
-    [56.0252, 71.7366],
-    [41.5493, 92.3655],
-    [70.7299, 92.2041],
-], dtype=np.float32)
-
-LANDMARK_INDICES = {
-    "left_eye":   list(range(36, 42)),
-    "right_eye":  list(range(42, 48)),
-    "nose":       54,
-    "mouth_left": 48,
-    "mouth_right": 54,
-}
-
 
 class FaceRecognitionService:
     def __init__(self):
         det_path = os.path.join(MODEL_DIR, "det_10g.onnx")
-        self.det_session = ort.InferenceSession(det_path, providers=["CPUExecutionProvider"])
-        self.det_input_name = self.det_session.get_inputs()[0].name
-
-        ld_path = os.path.join(MODEL_DIR, "2d106det.onnx")
-        self.ld_session = ort.InferenceSession(ld_path, providers=["CPUExecutionProvider"])
-        self.ld_input_name = self.ld_session.get_inputs()[0].name
-
         rec_path = os.path.join(MODEL_DIR, "w600k_r50.onnx")
+
+        self.det_session = ort.InferenceSession(det_path, providers=["CPUExecutionProvider"])
         self.rec_session = ort.InferenceSession(rec_path, providers=["CPUExecutionProvider"])
+
+        self.det_input_name = self.det_session.get_inputs()[0].name
         self.rec_input_name = self.rec_session.get_inputs()[0].name
 
     def _image_to_cv2(self, image_path):
@@ -122,93 +103,6 @@ class FaceRecognitionService:
 
         return faces
 
-    def _get_landmarks(self, image, bbox):
-        x1, y1, x2, y2 = bbox
-        w_box = x2 - x1
-        h_box = y2 - y1
-        cx = (x1 + x2) // 2
-        cy = (y1 + y2) // 2
-
-        size = int(max(w_box, h_box) * 1.5)
-        size = max(size, 32)
-
-        half = size // 2
-        crop_x1 = max(0, cx - half)
-        crop_y1 = max(0, cy - half)
-        crop_x2 = min(image.shape[1], crop_x1 + size)
-        crop_y2 = min(image.shape[0], crop_y1 + size)
-
-        face_crop = image[crop_y1:crop_y2, crop_x1:crop_x2]
-        face_192 = cv2.resize(face_crop, (192, 192))
-
-        blob = (face_192.astype(np.float32) - 127.5) / 128.0
-        blob = np.expand_dims(np.transpose(blob, (2, 0, 1)), axis=0)
-
-        raw = self.ld_session.run(None, {self.ld_input_name: blob})[0].flatten()
-
-        scale_x = (crop_x2 - crop_x1) / 192.0
-        scale_y = (crop_y2 - crop_y1) / 192.0
-
-        landmarks = []
-        for j in range(106):
-            lx = raw[j * 2] * scale_x + crop_x1
-            ly = raw[j * 2 + 1] * scale_y + crop_y1
-            landmarks.append((lx, ly))
-
-        return np.array(landmarks, dtype=np.float32)
-
-    def _extract_5_points(self, landmarks):
-        left_eye_idx = LANDMARK_INDICES["left_eye"]
-        right_eye_idx = LANDMARK_INDICES["right_eye"]
-        nose_idx = LANDMARK_INDICES["nose"]
-        ml_idx = LANDMARK_INDICES["mouth_left"]
-        mr_idx = LANDMARK_INDICES["mouth_right"]
-
-        left_eye = np.mean(landmarks[left_eye_idx], axis=0)
-        right_eye = np.mean(landmarks[right_eye_idx], axis=0)
-        nose = landmarks[nose_idx]
-        mouth_left = landmarks[ml_idx]
-        mouth_right = landmarks[mr_idx]
-
-        return np.array([left_eye, right_eye, nose, mouth_left, mouth_right], dtype=np.float32)
-
-    def _align_face(self, image, landmarks):
-        dst_points = self._extract_5_points(landmarks)
-
-        tform, _ = cv2.estimateAffinePartial2D(dst_points, SRC_POINTS, method=cv2.LMEDS)
-
-        if tform is None:
-            return cv2.resize(image, (112, 112))
-
-        aligned = cv2.warpAffine(image, tform, (112, 112), borderMode=cv2.BORDER_CONSTANT)
-        return aligned
-
-    def _aligned_embedding(self, full_image, bbox):
-        x1, y1, x2, y2 = bbox
-        pad = int(max(x2 - x1, y2 - y1) * 0.3)
-        pad = max(pad, 10)
-        h, w = full_image.shape[:2]
-        cx1 = max(0, x1 - pad)
-        cy1 = max(0, y1 - pad)
-        cx2 = min(w, x2 + pad)
-        cy2 = min(h, y2 + pad)
-
-        crop = full_image[cy1:cy2, cx1: cx2]
-
-        landmarks = self._get_landmarks(full_image, bbox)
-
-        aligned = self._align_face(crop if crop.size > 0 else full_image, landmarks)
-
-        blob = (aligned.astype(np.float32) - 127.5) / 128.0
-        blob = np.expand_dims(np.transpose(blob, (2, 0, 1)), axis=0)
-
-        embedding = self.rec_session.run(None, {self.rec_input_name: blob})[0]
-        vec = embedding.flatten().astype(np.float32)
-        norm = np.linalg.norm(vec)
-        if norm > 0:
-            vec = vec / norm
-        return vec.tolist()
-
     def _rec_embedding(self, face_img):
         face_resized = cv2.resize(face_img, (112, 112))
         blob = (face_resized.astype(np.float32) - 127.5) / 128.0
@@ -230,12 +124,8 @@ class FaceRecognitionService:
         faces = self._detect_faces(image)
         for face in faces:
             x1, y1, x2, y2 = face["bbox"]
-            try:
-                embedding = self._aligned_embedding(image, (x1, y1, x2, y2))
-            except Exception:
-                face_roi = image[y1:y2, x1:x2]
-                embedding = self._rec_embedding(face_roi)
-
+            face_roi = image[y1:y2, x1:x2]
+            embedding = self._rec_embedding(face_roi)
             embeddings.append({
                 "embedding": embedding,
                 "bbox": {"x": x1, "y": y1, "w": x2 - x1, "h": y2 - y1}

@@ -136,7 +136,7 @@ def search_employees(
     return {"results": [schemas.EmployeeResponse.model_validate(e) for e in employees]}
 
 def _verify_matches(input_embedding, employees, threshold, gap_ratio,
-                   employment_status, department, industry, cutoff_date, strict=False):
+                   employment_status, department, industry, cutoff_date):
     scored = []
     for employee in employees:
         if not employee.face_embedding:
@@ -162,13 +162,6 @@ def _verify_matches(input_embedding, employees, threshold, gap_ratio,
     top = scored[0][1]
     second = scored[1][1] if len(scored) > 1 else 0.0
     confident = (second == 0) or (top / second >= gap_ratio)
-
-    if strict and len(scored) == 1:
-        if top < 0.55:
-            return []
-
-    if strict and not confident:
-        return []
 
     results = []
     for emp, sim in scored:
@@ -286,65 +279,6 @@ def batch_face_match(
         "total_photos": len(photos),
         "results": results
     }
-
-@router.post("/multi-face-match/")
-def multi_face_match(
-    photo: UploadFile = File(...),
-    threshold: float = 0.55,
-    gap_ratio: float = 1.3,
-    employment_status: str = None,
-    department: str = None,
-    industry: str = None,
-    min_service_years: int = None,
-    db: Session = Depends(get_db)
-):
-    if not photo.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-        raise HTTPException(status_code=400, detail="只支持PNG和JPG格式的照片")
-
-    temp_path = os.path.join(PHOTOS_DIR, "temp_multi.jpg")
-    try:
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(photo.file, buffer)
-
-        face_data = face_service.extract_embeddings(temp_path)
-        if not face_data:
-            raise HTTPException(status_code=400, detail="未检测到人脸")
-
-        employees = crud.get_all_employees_with_embedding(db)
-
-        from datetime import date as date_cls
-        cutoff_date = None
-        if min_service_years:
-            cutoff_date = date_cls.today().replace(year=date_cls.today().year - min_service_years)
-
-        face_results = []
-        for fi, fd in enumerate(face_data):
-            matches = _verify_matches(fd["embedding"], employees, threshold, gap_ratio,
-                                      employment_status, department, industry, cutoff_date,
-                                      strict=True)
-
-            if matches and matches[0]["similarity"] < 0.55:
-                matches = []
-
-            face_results.append({
-                "face_index": fi + 1,
-                "bbox": fd["bbox"],
-                "top_match": matches[0] if matches else None,
-                "matches": matches[:5],
-                "is_unknown": len(matches) == 0
-            })
-
-        known = [f for f in face_results if not f["is_unknown"]]
-
-        return {
-            "total_faces": len(face_data),
-            "known_faces": len(known),
-            "unknown_faces": len(face_data) - len(known),
-            "faces": face_results
-        }
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
 
 @router.post("/upload-excel/")
 async def upload_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
