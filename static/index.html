@@ -759,16 +759,18 @@
             let html = '<h3>匹配结果</h3>';
             results.forEach(result => {
                 const serviceYears = result.hire_date ? calcServiceYears(result.hire_date) : null;
+                const icon = result.confident === false ? ' ⚠️' : '';
+                const hint = result.confident === false ? '<div style="font-size:11px;color:#e65100;margin-top:4px;">⚠ 置信度较低，仅供参考</div>' : '';
                 html += `
                     <div class="employee-card">
                         <img class="employee-photo" src="${result.photo_path ? result.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/80'}" alt="${result.name}">
                         <div class="employee-info">
-                            <h4>${result.name}</h4>
+                            <h4>${result.name}${icon}</h4>
                             <p>员工ID: ${result.employee_id}</p>
                             <p>部门: ${result.department || '-'} | 职位: ${result.title || '-'}</p>
                             <p>入职: ${result.hire_date || '-'} | 工龄: ${serviceYears !== null ? serviceYears + '年' : '-'} | 状态: <span style="color:${result.employment_status === '离职' ? '#ef5350' : '#2e7d32'};font-weight:600;">${result.employment_status || '-'}</span></p>
                         </div>
-                        <div class="similarity">${(result.similarity * 100).toFixed(1)}%</div>
+                        <div class="similarity">${(result.similarity * 100).toFixed(1)}%${hint}</div>
                     </div>
                 `;
             });

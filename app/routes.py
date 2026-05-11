@@ -161,9 +161,7 @@ def _verify_matches(input_embedding, employees, threshold, gap_ratio,
 
     top = scored[0][1]
     second = scored[1][1] if len(scored) > 1 else 0.0
-
-    if second > 0 and top / second < gap_ratio:
-        return []
+    confident = (second == 0) or (top / second >= gap_ratio)
 
     results = []
     for emp, sim in scored:
@@ -177,15 +175,20 @@ def _verify_matches(input_embedding, employees, threshold, gap_ratio,
             "similarity": sim,
             "photo_path": emp.photo_path,
             "employment_status": emp.employment_status,
-            "hire_date": emp.hire_date
+            "hire_date": emp.hire_date,
+            "confident": confident
         })
+
+    if not confident and len(results) > 1:
+        results = results[:1]
+
     return results
 
 @router.post("/face-match/", response_model=list[schemas.FaceMatchResult])
 def face_match(
     photo: UploadFile = File(...),
     threshold: float = 0.35,
-    gap_ratio: float = 1.5,
+    gap_ratio: float = 1.2,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -222,7 +225,7 @@ def face_match(
 def batch_face_match(
     photos: list[UploadFile] = File(...),
     threshold: float = 0.35,
-    gap_ratio: float = 1.5,
+    gap_ratio: float = 1.2,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -281,7 +284,7 @@ def batch_face_match(
 def multi_face_match(
     photo: UploadFile = File(...),
     threshold: float = 0.40,
-    gap_ratio: float = 1.5,
+    gap_ratio: float = 1.2,
     employment_status: str = None,
     department: str = None,
     industry: str = None,

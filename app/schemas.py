@@ -39,6 +39,7 @@ class FaceMatchResult(BaseModel):
     department: Optional[str]
     title: Optional[str]
     similarity: float
+    confident: Optional[bool] = None
     photo_path: Optional[str]
     employment_status: Optional[str] = None
     hire_date: Optional[date] = None
