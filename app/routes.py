@@ -283,8 +283,8 @@ def batch_face_match(
 @router.post("/multi-face-match/")
 def multi_face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.40,
-    gap_ratio: float = 1.2,
+    threshold: float = 0.50,
+    gap_ratio: float = 1.3,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -314,6 +314,12 @@ def multi_face_match(
         for fi, fd in enumerate(face_data):
             matches = _verify_matches(fd["embedding"], employees, threshold, gap_ratio,
                                       employment_status, department, industry, cutoff_date)
+
+            top_sim = matches[0]["similarity"] if matches else 0.0
+
+            if top_sim < 0.50:
+                matches = []
+
             face_results.append({
                 "face_index": fi + 1,
                 "bbox": fd["bbox"],
