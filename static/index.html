@@ -890,7 +890,7 @@
 
             let html = '<h3>多人脸识别结果</h3>';
             html += '<div class="result-box ' + (data.known_faces > 0 ? 'success' : 'warning') + '">检测到 <b>' + data.total_faces + '</b> 张人脸，其中 <b>' + data.known_faces + '</b> 张已识别，<b>' + data.unknown_faces + '</b> 张不在库中</div>';
-            html += '<p style="font-size:12px;color:#999;margin-top:4px;">多人脸识别阈值更高 (0.55)，仅匹配相似度明显高于其他人的面孔。</p>';
+            html += '<p style="font-size:12px;color:#999;margin-top:4px;">多人脸识别阈值 0.60，仅匹配相似度 ≥ 60% 且明显高于其他人的面孔。</p>';
 
             data.faces.forEach(face => {
                 html += '<div class="batch-photo-item">';

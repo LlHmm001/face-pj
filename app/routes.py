@@ -136,7 +136,7 @@ def search_employees(
     return {"results": [schemas.EmployeeResponse.model_validate(e) for e in employees]}
 
 def _verify_matches(input_embedding, employees, threshold, gap_ratio,
-                   employment_status, department, industry, cutoff_date):
+                   employment_status, department, industry, cutoff_date, strict=False):
     scored = []
     for employee in employees:
         if not employee.face_embedding:
@@ -162,6 +162,9 @@ def _verify_matches(input_embedding, employees, threshold, gap_ratio,
     top = scored[0][1]
     second = scored[1][1] if len(scored) > 1 else 0.0
     confident = (second == 0) or (top / second >= gap_ratio)
+
+    if strict and not confident:
+        return []
 
     results = []
     for emp, sim in scored:
@@ -283,7 +286,7 @@ def batch_face_match(
 @router.post("/multi-face-match/")
 def multi_face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.55,
+    threshold: float = 0.60,
     gap_ratio: float = 1.5,
     employment_status: str = None,
     department: str = None,
@@ -313,11 +316,10 @@ def multi_face_match(
         face_results = []
         for fi, fd in enumerate(face_data):
             matches = _verify_matches(fd["embedding"], employees, threshold, gap_ratio,
-                                      employment_status, department, industry, cutoff_date)
+                                      employment_status, department, industry, cutoff_date,
+                                      strict=True)
 
-            top_sim = matches[0]["similarity"] if matches else 0.0
-
-            if top_sim < 0.55:
+            if matches and matches[0]["similarity"] < 0.60:
                 matches = []
 
             face_results.append({
