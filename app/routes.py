@@ -184,8 +184,8 @@ def _verify_matches(input_embedding, employees, threshold, gap_ratio,
 @router.post("/face-match/", response_model=list[schemas.FaceMatchResult])
 def face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.85,
-    gap_ratio: float = 1.15,
+    threshold: float = 0.35,
+    gap_ratio: float = 1.5,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -221,8 +221,8 @@ def face_match(
 @router.post("/batch-face-match/")
 def batch_face_match(
     photos: list[UploadFile] = File(...),
-    threshold: float = 0.85,
-    gap_ratio: float = 1.15,
+    threshold: float = 0.35,
+    gap_ratio: float = 1.5,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -280,8 +280,8 @@ def batch_face_match(
 @router.post("/multi-face-match/")
 def multi_face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.90,
-    gap_ratio: float = 1.15,
+    threshold: float = 0.40,
+    gap_ratio: float = 1.5,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
