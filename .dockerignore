@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+temp_face.jpg
+*.egg-info/
+.env
+photos/
+models/
+.git/
+.gitignore
+docker-compose.yml
+*.md
