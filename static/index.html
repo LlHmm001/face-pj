@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人脸识别检索系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        .header p {
+            opacity: 0.9;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .tab {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tab:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .tab.active {
+            background: white;
+            color: #667eea;
+        }
+        .panel {
+            display: none;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .panel.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .upload-area {
+            border: 2px dashed #e0e0e0;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .upload-area i {
+            font-size: 48px;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .results h3 {
+            margin-bottom: 15px;
+        }
+        .employee-card {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.3s;
+        }
+        .employee-card:hover {
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .employee-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 20px;
+            border: 3px solid #667eea;
+        }
+        .employee-info {
+            flex: 1;
+        }
+        .employee-info h4 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .employee-info p {
+            color: #666;
+            font-size: 14px;
+            margin: 3px 0;
+        }
+        .similarity {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        .search-filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f8f9ff;
+            border-radius: 12px;
+        }
+        .filter-item {
+            flex: 1;
+            min-width: 150px;
+        }
+        .filter-item label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+        }
+        .filter-item select, .filter-item input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .filter-item select:focus, .filter-item input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+        }
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .stat-card .label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 30px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        .toast.success {
+            background: #2e7d32;
+        }
+        .toast.error {
+            background: #c62828;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th {
+            background: #f8f9ff;
+            font-weight: 600;
+            color: #333;
+        }
+        td img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .action-btn.edit {
+            background: #42a5f5;
+            color: white;
+        }
+        .action-btn.delete {
+            background: #ef5350;
+            color: white;
+        }
+        .workflow-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .step {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-content h3 {
+            margin-bottom: 8px;
+        }
+        .step-arrow {
+            text-align: center;
+            font-size: 24px;
+            color: #667eea;
+            margin: -5px 0;
+        }
+        .result-box {
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .result-box.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+        }
+        .result-box.info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #90caf9;
+        }
+        .result-box.warning {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffcc80;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👤 人脸识别检索系统</h1>
+            <p>上传照片检索员工信息，支持姓名、部门、在职状态等多条件查询</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showPanel('face-match')">人脸检索</button>
+            <button class="tab" onclick="showPanel('search')">条件查询</button>
+            <button class="tab" onclick="showPanel('add')">添加员工</button>
+            <button class="tab" onclick="showPanel('list')">员工列表</button>
+            <button class="tab" onclick="showPanel('import')">批量导入</button>
+        </div>
+
+        <div id="face-match" class="panel active">
+            <h2>📷 人脸检索</h2>
+            <p>上传一张照片，系统将自动匹配最相似的员工。可叠加筛选条件缩小范围。</p>
+            <div class="filter-bar">
+                <div class="filter-item">
+                    <label>在职状态</label>
+                    <select id="face-status">
+                        <option value="">全部</option>
+                        <option value="在职">在职</option>
+                        <option value="离职">离职</option>
+                        <option value="试用期">试用期</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>部门</label>
+                    <select id="face-department"><option value="">全部</option></select>
+                </div>
+                <div class="filter-item">
+                    <label>行业</label>
+                    <select id="face-industry"><option value="">全部</option></select>
+                </div>
+                <div class="filter-item">
+                    <label>最少工龄</label>
+                    <select id="face-service-years">
+                        <option value="">不限</option>
+                        <option value="1">1年以上</option>
+                        <option value="3">3年以上</option>
+                        <option value="5">5年以上</option>
+                        <option value="10">10年以上</option>
+                        <option value="15">15年以上</option>
+                        <option value="20">20年以上</option>
+                    </select>
+                </div>
+            </div>
+            <div class="upload-area" onclick="document.getElementById('face-file').click()" ondragover="event.preventDefault(); this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="event.preventDefault(); this.classList.remove('dragover'); handleDrop(event)">
+                <input type="file" id="face-file" accept="image/*" style="display: none;" onchange="handleFaceUpload(event)">
+                <div>📸</div>
+                <p>点击或拖拽上传照片</p>
+                <p style="font-size: 12px; color: #999;">支持 PNG、JPG 格式</p>
+            </div>
+            <div class="form-group">
+                <label for="threshold">相似度阈值</label>
+                <input type="range" id="threshold" min="0" max="1" step="0.05" value="0.7">
+                <span id="threshold-value">0.7</span>
+            </div>
+            <div class="results" id="face-results"></div>
+        </div>
+
+        <div id="search" class="panel">
+            <h2>🔍 条件查询</h2>
+            <div class="filter-bar">
+                <div class="filter-item">
+                    <label>姓名</label>
+                    <input type="text" id="search-name" placeholder="输入姓名">
+                </div>
+                <div class="filter-item">
+                    <label>部门</label>
+                    <input type="text" id="search-department" placeholder="输入部门">
+                </div>
+                <div class="filter-item">
+                    <label>在职状态</label>
+                    <select id="search-status">
+                        <option value="">全部</option>
+                        <option value="在职">在职</option>
+                        <option value="离职">离职</option>
+                        <option value="试用期">试用期</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>行业</label>
+                    <input type="text" id="search-industry" placeholder="输入行业">
+                </div>
+                <div class="filter-item">
+                    <label>最少工龄</label>
+                    <select id="search-service-years">
+                        <option value="">不限</option>
+                        <option value="1">1年以上</option>
+                        <option value="3">3年以上</option>
+                        <option value="5">5年以上</option>
+                        <option value="10">10年以上</option>
+                        <option value="15">15年以上</option>
+                        <option value="20">20年以上</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="searchEmployees()">查询</button>
+            <div class="results" id="search-results"></div>
+        </div>
+
+        <div id="add" class="panel">
+            <h2>➕ 添加员工</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>员工ID *</label>
+                    <input type="text" id="add-employee-id" required placeholder="如：10001">
+                </div>
+                <div class="form-group">
+                    <label>姓名 *</label>
+                    <input type="text" id="add-name" required placeholder="如：张三">
+                </div>
+                <div class="form-group">
+                    <label>部门</label>
+                    <input type="text" id="add-department" placeholder="如：销售部">
+                </div>
+                <div class="form-group">
+                    <label>职位</label>
+                    <input type="text" id="add-title" placeholder="如：经理">
+                </div>
+                <div class="form-group">
+                    <label>入职日期</label>
+                    <input type="date" id="add-hire-date">
+                </div>
+                <div class="form-group">
+                    <label>在职状态</label>
+                    <select id="add-status">
+                        <option value="">请选择</option>
+                        <option value="在职">在职</option>
+                        <option value="离职">离职</option>
+                        <option value="试用期">试用期</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>行业</label>
+                    <input type="text" id="add-industry" placeholder="如：互联网">
+                </div>
+            </div>
+            <div class="upload-area" onclick="document.getElementById('add-photo').click()">
+                <input type="file" id="add-photo" accept="image/*" style="display: none;" onchange="previewPhoto(event)">
+                <div>📷</div>
+                <p>点击上传员工照片（可选）</p>
+                <p style="font-size: 12px; color: #999;">支持 PNG、JPG 格式</p>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="addEmployee()">添加员工</button>
+                <button class="btn btn-secondary" onclick="clearAddForm()">重置</button>
+            </div>
+        </div>
+
+        <div id="list" class="panel">
+            <h2>📋 员工列表</h2>
+            <div class="stats" id="stats"></div>
+            <div id="employee-list"></div>
+        </div>
+
+        <div id="import" class="panel">
+            <h2>📥 批量导入（两步操作）</h2>
+
+            <div class="workflow-steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>上传 Excel 表格</h3>
+                        <p>导入员工信息：姓名、入职时间、在职状态、行业等</p>
+                        <p style="color: #666; font-size: 13px;">必须包含 <b>name</b>（姓名）列，其余列可选</p>
+                        <div class="upload-area" onclick="document.getElementById('excel-file').click()" ondragover="event.preventDefault(); this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="event.preventDefault(); this.classList.remove('dragover'); handleExcelDrop(event)">
+                            <input type="file" id="excel-file" accept=".xlsx" style="display: none;" onchange="handleExcelUpload(event)">
+                            <div>📊</div>
+                            <p>点击或拖拽上传 Excel 文件</p>
+                            <p style="font-size: 12px; color: #999;">支持 .xlsx 格式</p>
+                        </div>
+                        <div id="excel-result" style="margin-top:12px;"></div>
+                    </div>
+                </div>
+
+                <div class="step-arrow">⬇</div>
+
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>上传照片文件夹</h3>
+                        <p>照片<b>文件名 = 员工姓名</b>，系统自动匹配并提取人脸特征</p>
+                        <p style="color: #666; font-size: 13px;">例如：<b>张三.jpg</b> 会匹配到姓名为「张三」的员工</p>
+                        <div class="upload-area" onclick="document.getElementById('photo-files').click()" ondragover="event.preventDefault(); this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="event.preventDefault(); this.classList.remove('dragover'); handlePhotosDrop(event)">
+                            <input type="file" id="photo-files" accept="image/*" multiple style="display: none;" onchange="handlePhotosUpload(event)">
+                            <div>📸</div>
+                            <p>点击选择多张照片（可多选）</p>
+                            <p style="font-size: 12px; color: #999;">支持同时选择整个文件夹的所有照片</p>
+                        </div>
+                        <div id="photos-result" style="margin-top:12px;"></div>
+                        <div id="photos-detail" style="margin-top:12px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="import-summary" style="display:none;">
+                <h3>📋 未匹配员工清单</h3>
+                <p style="color: #666; font-size: 14px;">以下员工尚未关联照片，请检查照片文件名是否与姓名一致</p>
+                <div id="missing-photos-list"></div>
+                <button class="btn btn-primary" onclick="loadMissingPhotos()" style="margin-top:12px;">刷新清单</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+
+        function showPanel(panelId) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(panelId).classList.add('active');
+            
+            if (panelId === 'list') {
+                loadEmployeeList();
+            }
+            if (panelId === 'face-match') {
+                loadFilterOptions();
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        document.getElementById('threshold').addEventListener('input', function() {
+            document.getElementById('threshold-value').textContent = this.value;
+        });
+
+        function handleDrop(event) {
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                processFaceFile(files[0]);
+            }
+        }
+
+        function handleFaceUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processFaceFile(file);
+            }
+        }
+
+        async function processFaceFile(file) {
+            const formData = new FormData();
+            formData.append('photo', file);
+            formData.append('threshold', document.getElementById('threshold').value);
+
+            const status = document.getElementById('face-status').value;
+            const department = document.getElementById('face-department').value;
+            const industry = document.getElementById('face-industry').value;
+            const serviceYears = document.getElementById('face-service-years').value;
+
+            if (status) formData.append('employment_status', status);
+            if (department) formData.append('department', department);
+            if (industry) formData.append('industry', industry);
+            if (serviceYears) formData.append('min_service_years', serviceYears);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/face-match/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const results = await response.json();
+                displayFaceResults(results);
+            } catch (error) {
+                showToast('检索失败：' + error.message, 'error');
+            }
+        }
+
+        function displayFaceResults(results) {
+            const container = document.getElementById('face-results');
+            if (results.length === 0) {
+                container.innerHTML = '<p style="color: #666;">未找到匹配的员工，可尝试降低相似度阈值或放宽筛选条件</p>';
+                return;
+            }
+            
+            let html = '<h3>匹配结果（按相似度排序）</h3>';
+            results.forEach(result => {
+                const serviceYears = result.hire_date ? calcServiceYears(result.hire_date) : null;
+                html += `
+                    <div class="employee-card">
+                        <img class="employee-photo" src="${result.photo_path ? result.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/80'}" alt="${result.name}">
+                        <div class="employee-info">
+                            <h4>${result.name}</h4>
+                            <p>员工ID: ${result.employee_id}</p>
+                            <p>部门: ${result.department || '-'} | 职位: ${result.title || '-'}</p>
+                            <p>入职: ${result.hire_date || '-'} | 工龄: ${serviceYears !== null ? serviceYears + '年' : '-'} | 状态: <span style="color:${result.employment_status === '离职' ? '#ef5350' : '#2e7d32'};font-weight:600;">${result.employment_status || '-'}</span></p>
+                        </div>
+                        <div class="similarity">相似度: ${(result.similarity * 100).toFixed(1)}%</div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function calcServiceYears(hireDate) {
+            if (!hireDate) return null;
+            const hire = new Date(hireDate);
+            const now = new Date();
+            let years = now.getFullYear() - hire.getFullYear();
+            const m = now.getMonth() - hire.getMonth();
+            if (m < 0 || (m === 0 && now.getDate() < hire.getDate())) {
+                years--;
+            }
+            return years;
+        }
+
+        async function searchEmployees() {
+            const params = new URLSearchParams();
+            const name = document.getElementById('search-name').value;
+            const department = document.getElementById('search-department').value;
+            const status = document.getElementById('search-status').value;
+            const industry = document.getElementById('search-industry').value;
+            const serviceYears = document.getElementById('search-service-years').value;
+            
+            if (name) params.append('name', name);
+            if (department) params.append('department', department);
+            if (status) params.append('employment_status', status);
+            if (industry) params.append('industry', industry);
+            if (serviceYears) params.append('min_service_years', serviceYears);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/search/?${params}`);
+                const data = await response.json();
+                displaySearchResults(data.results);
+            } catch (error) {
+                showToast('查询失败：' + error.message, 'error');
+            }
+        }
+
+        function displaySearchResults(employees) {
+            const container = document.getElementById('search-results');
+            if (!employees || employees.length === 0) {
+                container.innerHTML = '<p style="color: #666;">未找到符合条件的员工</p>';
+                return;
+            }
+            
+            let html = `<h3>查询结果（共 ${employees.length} 人）</h3>`;
+            employees.forEach(employee => {
+                html += `
+                    <div class="employee-card">
+                        <img class="employee-photo" src="${employee.photo_path ? employee.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/80'}" alt="${employee.name}">
+                        <div class="employee-info">
+                            <h4>${employee.name}</h4>
+                            <p>员工ID: ${employee.employee_id}</p>
+                            <p>部门: ${employee.department || '-'}</p>
+                            <p>职位: ${employee.title || '-'}</p>
+                            <p>入职日期: ${employee.hire_date || '-'}</p>
+                            <p>在职状态: ${employee.employment_status || '-'}</p>
+                            <p>行业: ${employee.industry || '-'}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function previewPhoto(event) {
+            const file = event.target.files[0];
+            if (file) {
+                showToast('照片已选择', 'success');
+            }
+        }
+
+        async function addEmployee() {
+            const formData = new FormData();
+            formData.append('employee_id', document.getElementById('add-employee-id').value);
+            formData.append('name', document.getElementById('add-name').value);
+            formData.append('department', document.getElementById('add-department').value);
+            formData.append('title', document.getElementById('add-title').value);
+            formData.append('hire_date', document.getElementById('add-hire-date').value);
+            formData.append('employment_status', document.getElementById('add-status').value);
+            formData.append('industry', document.getElementById('add-industry').value);
+            
+            const photo = document.getElementById('add-photo').files[0];
+            if (photo) {
+                formData.append('photo', photo);
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/employees/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    showToast('员工添加成功！', 'success');
+                    clearAddForm();
+                } else {
+                    const error = await response.json();
+                    showToast('添加失败：' + error.detail, 'error');
+                }
+            } catch (error) {
+                showToast('添加失败：' + error.message, 'error');
+            }
+        }
+
+        function clearAddForm() {
+            document.getElementById('add-employee-id').value = '';
+            document.getElementById('add-name').value = '';
+            document.getElementById('add-department').value = '';
+            document.getElementById('add-title').value = '';
+            document.getElementById('add-hire-date').value = '';
+            document.getElementById('add-status').value = '';
+            document.getElementById('add-industry').value = '';
+            document.getElementById('add-photo').value = '';
+        }
+
+        async function loadEmployeeList() {
+            try {
+                const response = await fetch(`${API_BASE}/api/employees/`);
+                const employees = await response.json();
+                displayEmployeeList(employees);
+            } catch (error) {
+                showToast('加载失败：' + error.message, 'error');
+            }
+        }
+
+        function displayEmployeeList(employees) {
+            const stats = document.getElementById('stats');
+            const employed = employees.filter(e => e.employment_status === '在职').length;
+            const total = employees.length;
+            
+            stats.innerHTML = `
+                <div class="stat-card"><div class="number">${total}</div><div class="label">总员工数</div></div>
+                <div class="stat-card"><div class="number">${employed}</div><div class="label">在职员工</div></div>
+            `;
+            
+            const container = document.getElementById('employee-list');
+            if (!employees || employees.length === 0) {
+                container.innerHTML = '<p style="color: #666;">暂无员工数据</p>';
+                return;
+            }
+            
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>照片</th>
+                            <th>员工ID</th>
+                            <th>姓名</th>
+                            <th>部门</th>
+                            <th>职位</th>
+                            <th>入职日期</th>
+                            <th>在职状态</th>
+                            <th>行业</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            employees.forEach(employee => {
+                html += `
+                    <tr>
+                        <td><img src="${employee.photo_path ? employee.photo_path.replace('./photos', '/photos') : 'https://via.placeholder.com/50'}" alt="${employee.name}"></td>
+                        <td>${employee.employee_id}</td>
+                        <td>${employee.name}</td>
+                        <td>${employee.department || '-'}</td>
+                        <td>${employee.title || '-'}</td>
+                        <td>${employee.hire_date || '-'}</td>
+                        <td>${employee.employment_status || '-'}</td>
+                        <td>${employee.industry || '-'}</td>
+                        <td>
+                            <div class="action-btns">
+                                <button class="action-btn edit" onclick="editEmployee('${employee.employee_id}')">编辑</button>
+                                <button class="action-btn delete" onclick="deleteEmployee('${employee.employee_id}')">删除</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function deleteEmployee(employeeId) {
+            if (!confirm('确定要删除该员工吗？')) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/employees/${employeeId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showToast('删除成功！', 'success');
+                    loadEmployeeList();
+                } else {
+                    showToast('删除失败', 'error');
+                }
+            } catch (error) {
+                showToast('删除失败：' + error.message, 'error');
+            }
+        }
+
+        function editEmployee(employeeId) {
+            showPanel('add');
+            fetch(`${API_BASE}/api/employees/${employeeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('add-employee-id').value = data.employee_id;
+                    document.getElementById('add-employee-id').disabled = true;
+                    document.getElementById('add-name').value = data.name;
+                    document.getElementById('add-department').value = data.department || '';
+                    document.getElementById('add-title').value = data.title || '';
+                    document.getElementById('add-hire-date').value = data.hire_date || '';
+                    document.getElementById('add-status').value = data.employment_status || '';
+                    document.getElementById('add-industry').value = data.industry || '';
+                });
+        }
+
+        function handleExcelDrop(event) {
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                processExcelFile(files[0]);
+            }
+        }
+
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processExcelFile(file);
+            }
+        }
+
+        async function processExcelFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const resultDiv = document.getElementById('excel-result');
+            resultDiv.innerHTML = '<div class="result-box info">正在导入Excel...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/upload-excel/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="result-box success">
+                        ✅ Excel导入成功！新增 ${result.created} 人，更新 ${result.updated} 人
+                    </div>`;
+                    showToast(`Excel导入成功！新增 ${result.created} 人，更新 ${result.updated} 人`, 'success');
+                    document.getElementById('import-summary').style.display = 'block';
+                    loadMissingPhotos();
+                } else {
+                    resultDiv.innerHTML = `<div class="result-box warning">❌ ${result.detail}</div>`;
+                    showToast('导入失败：' + result.detail, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result-box warning">❌ 导入失败：${error.message}</div>`;
+                showToast('导入失败：' + error.message, 'error');
+            }
+        }
+
+        function handlePhotosDrop(event) {
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                processPhotosFiles(files);
+            }
+        }
+
+        function handlePhotosUpload(event) {
+            const files = event.target.files;
+            if (files.length > 0) {
+                processPhotosFiles(files);
+            }
+        }
+
+        async function processPhotosFiles(files) {
+            const formData = new FormData();
+            for (const file of files) {
+                formData.append('photos', file);
+            }
+
+            const resultDiv = document.getElementById('photos-result');
+            const detailDiv = document.getElementById('photos-detail');
+            resultDiv.innerHTML = `<div class="result-box info">正在上传 ${files.length} 张照片并匹配...</div>`;
+            detailDiv.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/batch-link-photos/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="result-box success">
+                        ✅ 照片匹配完成！成功匹配 <b>${result.matched_count}</b> 人，未匹配 <b>${result.unmatched_count}</b> 人
+                    </div>`;
+
+                    let detailHTML = '';
+                    if (result.matched.length > 0) {
+                        detailHTML += '<div class="result-box success"><b>✅ 已匹配：</b><br>';
+                        result.matched.forEach(m => {
+                            detailHTML += `📷 <b>${m.filename}</b> → ${m.name} (ID: ${m.employee_id})${m.has_face ? ' ✅人脸已提取' : ' ⚠️未检测到人脸'}<br>`;
+                        });
+                        detailHTML += '</div>';
+                    }
+                    if (result.unmatched.length > 0) {
+                        detailHTML += '<div class="result-box warning"><b>❌ 未匹配：</b><br>';
+                        result.unmatched.forEach(m => {
+                            detailHTML += `📷 <b>${m.filename}</b> → ${m.reason}<br>`;
+                        });
+                        detailHTML += '</div>';
+                    }
+                    detailDiv.innerHTML = detailHTML;
+
+                    document.getElementById('import-summary').style.display = 'block';
+                    loadMissingPhotos();
+                } else {
+                    resultDiv.innerHTML = `<div class="result-box warning">❌ 处理失败：${result.detail}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result-box warning">❌ 处理失败：${error.message}</div>`;
+            }
+        }
+
+        async function loadMissingPhotos() {
+            try {
+                const response = await fetch(`${API_BASE}/api/employees-without-photo/`);
+                const data = await response.json();
+
+                const container = document.getElementById('missing-photos-list');
+                if (data.count === 0) {
+                    container.innerHTML = '<div class="result-box success">🎉 所有员工都已关联照片！</div>';
+                } else {
+                    let html = `<div class="result-box warning">还有 <b>${data.count}</b> 位员工未关联照片：</div><ul style="margin-top:8px;">`;
+                    data.employees.forEach(e => {
+                        html += `<li>${e.name} (ID: ${e.employee_id})</li>`;
+                    });
+                    html += '</ul>';
+                    container.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('加载失败', error);
+            }
+        }
+
+        async function loadFilterOptions() {
+            try {
+                const response = await fetch(`${API_BASE}/api/employees/`);
+                const employees = await response.json();
+
+                const depts = [...new Set(employees.map(e => e.department).filter(Boolean))].sort();
+                const deptSelect = document.getElementById('face-department');
+                deptSelect.innerHTML = '<option value="">全部</option>';
+                depts.forEach(d => {
+                    deptSelect.innerHTML += `<option value="${d}">${d}</option>`;
+                });
+
+                const industries = [...new Set(employees.map(e => e.industry).filter(Boolean))].sort();
+                const indSelect = document.getElementById('face-industry');
+                indSelect.innerHTML = '<option value="">全部</option>';
+                industries.forEach(i => {
+                    indSelect.innerHTML += `<option value="${i}">${i}</option>`;
+                });
+            } catch (error) {
+                console.error('加载筛选选项失败', error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+temp_face.jpg
+*.egg-info/
+.env
+photos/*.jpg
+photos/*.jpeg
+photos/*.png
