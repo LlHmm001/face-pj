@@ -1190,9 +1190,14 @@
         }
 
         async function processPhotosFiles(files) {
+            console.log('[DEBUG] processPhotosFiles called with', files.length, 'files');
+            for (let i = 0; i < files.length; i++) {
+                console.log('[DEBUG] File', i, ':', files[i].name, files[i].type, files[i].size);
+            }
+
             const formData = new FormData();
             for (const file of files) {
-                formData.append('photos', file);
+                formData.append('photos', file, file.name);
             }
 
             const resultDiv = document.getElementById('photos-result');
