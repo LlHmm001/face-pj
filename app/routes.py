@@ -164,7 +164,7 @@ def _verify_matches(input_embedding, employees, threshold, gap_ratio,
     confident = (second == 0) or (top / second >= gap_ratio)
 
     if strict and len(scored) == 1:
-        if top < 0.75:
+        if top < 0.55:
             return []
 
     if strict and not confident:
@@ -290,8 +290,8 @@ def batch_face_match(
 @router.post("/multi-face-match/")
 def multi_face_match(
     photo: UploadFile = File(...),
-    threshold: float = 0.75,
-    gap_ratio: float = 1.5,
+    threshold: float = 0.55,
+    gap_ratio: float = 1.3,
     employment_status: str = None,
     department: str = None,
     industry: str = None,
@@ -323,7 +323,7 @@ def multi_face_match(
                                       employment_status, department, industry, cutoff_date,
                                       strict=True)
 
-            if matches and matches[0]["similarity"] < 0.70:
+            if matches and matches[0]["similarity"] < 0.55:
                 matches = []
 
             face_results.append({
