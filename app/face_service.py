@@ -37,31 +37,69 @@ class FaceRecognitionService:
         blob = (canvas.astype(np.float32) - 127.5) / 128.0
         blob = np.expand_dims(np.transpose(blob, (2, 0, 1)), axis=0)
 
-        outputs = self.det_session.run(None, {self.det_input_name: blob})
-        detections = outputs[0]
+        det_outputs = self.det_session.run(None, {self.det_input_name: blob})
 
-        faces = []
+        stride_configs = [
+            (8, 6400, 0, 3),
+            (16, 1600, 1, 4),
+            (32, 400, 2, 5),
+        ]
+
+        all_boxes = []
+        all_scores = []
         scale_h = h / 640.0
         scale_w = w / 640.0
 
-        for det in detections:
-            score = float(det[4])
-            if score < 0.5:
-                continue
-            x1 = int(det[0] * scale_w)
-            y1 = int(det[1] * scale_h)
-            x2 = int(det[2] * scale_w)
-            y2 = int(det[3] * scale_h)
-            x1 = max(0, min(w - 1, x1))
-            y1 = max(0, min(h - 1, y1))
-            x2 = max(0, min(w - 1, x2))
-            y2 = max(0, min(h - 1, y2))
-            if x2 <= x1 or y2 <= y1:
-                continue
-            faces.append({
-                "bbox": (x1, y1, x2, y2),
-                "score": score
-            })
+        for stride, num_cells, score_idx, bbox_idx in stride_configs:
+            scores = det_outputs[score_idx].reshape(num_cells, 2)
+            bboxes = det_outputs[bbox_idx].reshape(num_cells, 2, 4)
+
+            grid_size = 640 // stride
+            for cell in range(num_cells):
+                for anchor in range(2):
+                    s = float(scores[cell, anchor])
+                    if s < 0.5:
+                        continue
+
+                    grid_y = cell // grid_size
+                    grid_x = cell % grid_size
+                    cx = (grid_x + 0.5) * stride
+                    cy = (grid_y + 0.5) * stride
+
+                    dx1 = float(bboxes[cell, anchor, 0])
+                    dy1 = float(bboxes[cell, anchor, 1])
+                    dx2 = float(bboxes[cell, anchor, 2])
+                    dy2 = float(bboxes[cell, anchor, 3])
+
+                    x1 = (cx - dx1 * stride) * scale_w
+                    y1 = (cy - dy1 * stride) * scale_h
+                    x2 = (cx + dx2 * stride) * scale_w
+                    y2 = (cy + dy2 * stride) * scale_h
+
+                    x1 = max(0, min(w - 1, int(x1)))
+                    y1 = max(0, min(h - 1, int(y1)))
+                    x2 = max(0, min(w - 1, int(x2)))
+                    y2 = max(0, min(h - 1, int(y2)))
+
+                    if x2 <= x1 or y2 <= y1:
+                        continue
+
+                    all_boxes.append([x1, y1, x2, y2])
+                    all_scores.append(s)
+
+        if not all_boxes:
+            return []
+
+        indices = cv2.dnn.NMSBoxes(all_boxes, all_scores, 0.5, 0.4)
+
+        faces = []
+        if len(indices) > 0:
+            for idx in indices.flatten():
+                x1, y1, x2, y2 = all_boxes[idx]
+                faces.append({
+                    "bbox": (x1, y1, x2, y2),
+                    "score": all_scores[idx]
+                })
 
         return faces
 

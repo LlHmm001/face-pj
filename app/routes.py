@@ -403,10 +403,8 @@ async def batch_link_photos(
     unmatched = []
     errors = []
 
-    print(f"[batch-link-photos] received {len(photos)} files")
     for photo in photos:
         fn = photo.filename
-        print(f"[batch-link-photos] file: filename={fn!r}, content_type={photo.content_type}")
 
         if not fn:
             unmatched.append({"filename": fn or "(empty)", "reason": "文件名为空"})
