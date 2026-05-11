@@ -198,6 +198,164 @@ def face_match(
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
+@router.post("/batch-face-match/")
+def batch_face_match(
+    photos: list[UploadFile] = File(...),
+    threshold: float = 0.7,
+    employment_status: str = None,
+    department: str = None,
+    industry: str = None,
+    min_service_years: int = None,
+    db: Session = Depends(get_db)
+):
+    if not photos:
+        raise HTTPException(status_code=400, detail="请上传照片文件")
+
+    employees = crud.get_all_employees_with_embedding(db)
+
+    from datetime import date as date_cls
+    cutoff_date = None
+    if min_service_years:
+        cutoff_date = date_cls.today().replace(year=date_cls.today().year - min_service_years)
+
+    results = []
+
+    for idx, photo in enumerate(photos):
+        if not photo.filename or not photo.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            continue
+
+        temp_path = os.path.join(PHOTOS_DIR, f"temp_batch_{idx}.jpg")
+        try:
+            with open(temp_path, "wb") as buffer:
+                shutil.copyfileobj(photo.file, buffer)
+
+            face_count = face_service.count_faces(temp_path)
+            input_embedding = face_service.extract_embedding(temp_path)
+            if not input_embedding:
+                results.append({
+                    "filename": photo.filename,
+                    "face_count": face_count,
+                    "matches": [],
+                    "error": "无法提取人脸特征"
+                })
+                continue
+
+            matches = []
+            for employee in employees:
+                if not employee.face_embedding:
+                    continue
+                if employment_status and employee.employment_status != employment_status:
+                    continue
+                if department and employee.department != department:
+                    continue
+                if industry and employee.industry != industry:
+                    continue
+                if cutoff_date and employee.hire_date:
+                    if employee.hire_date > cutoff_date:
+                        continue
+
+                similarity = face_service.compare_faces(input_embedding, employee.face_embedding)
+                if similarity >= threshold:
+                    matches.append({
+                        "employee_id": employee.employee_id,
+                        "name": employee.name,
+                        "department": employee.department,
+                        "title": employee.title,
+                        "similarity": round(float(similarity), 4),
+                        "photo_path": employee.photo_path,
+                        "employment_status": employee.employment_status,
+                        "hire_date": employee.hire_date
+                    })
+
+            matches.sort(key=lambda x: x["similarity"], reverse=True)
+            results.append({
+                "filename": photo.filename,
+                "face_count": face_count,
+                "matches": matches[:5]
+            })
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    return {
+        "total_photos": len(photos),
+        "results": results
+    }
+
+@router.post("/multi-face-match/")
+def multi_face_match(
+    photo: UploadFile = File(...),
+    threshold: float = 0.7,
+    employment_status: str = None,
+    department: str = None,
+    industry: str = None,
+    min_service_years: int = None,
+    db: Session = Depends(get_db)
+):
+    if not photo.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+        raise HTTPException(status_code=400, detail="只支持PNG和JPG格式的照片")
+
+    temp_path = os.path.join(PHOTOS_DIR, "temp_multi.jpg")
+    try:
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(photo.file, buffer)
+
+        face_data = face_service.extract_embeddings(temp_path)
+        if not face_data:
+            raise HTTPException(status_code=400, detail="未检测到人脸")
+
+        employees = crud.get_all_employees_with_embedding(db)
+
+        from datetime import date as date_cls
+        cutoff_date = None
+        if min_service_years:
+            cutoff_date = date_cls.today().replace(year=date_cls.today().year - min_service_years)
+
+        face_results = []
+        for fi, fd in enumerate(face_data):
+            face_matches = []
+            for employee in employees:
+                if not employee.face_embedding:
+                    continue
+                if employment_status and employee.employment_status != employment_status:
+                    continue
+                if department and employee.department != department:
+                    continue
+                if industry and employee.industry != industry:
+                    continue
+                if cutoff_date and employee.hire_date:
+                    if employee.hire_date > cutoff_date:
+                        continue
+
+                similarity = face_service.compare_faces(fd["embedding"], employee.face_embedding)
+                if similarity >= threshold:
+                    face_matches.append({
+                        "employee_id": employee.employee_id,
+                        "name": employee.name,
+                        "department": employee.department,
+                        "title": employee.title,
+                        "similarity": round(float(similarity), 4),
+                        "photo_path": employee.photo_path,
+                        "employment_status": employee.employment_status,
+                        "hire_date": employee.hire_date
+                    })
+
+            face_matches.sort(key=lambda x: x["similarity"], reverse=True)
+            face_results.append({
+                "face_index": fi + 1,
+                "bbox": fd["bbox"],
+                "top_match": face_matches[0] if face_matches else None,
+                "matches": face_matches[:5]
+            })
+
+        return {
+            "total_faces": len(face_data),
+            "faces": face_results
+        }
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
 @router.post("/upload-excel/")
 async def upload_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename.lower().endswith('.xlsx'):

@@ -48,3 +48,8 @@ class SearchRequest(BaseModel):
     department: Optional[str] = None
     employment_status: Optional[str] = None
     industry: Optional[str] = None
+
+class MultiFaceResult(BaseModel):
+    face_index: int
+    bbox: dict
+    matches: list
