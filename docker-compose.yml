@@ -1,9 +1,12 @@
-version: '3.8'
+version: "3.8"
 
 services:
   face-recognition:
-    build: .
-    container_name: face-recognition-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: llhmm001/face-recognition:latest
+    container_name: face-recognition
     ports:
       - "8000:8000"
     volumes:

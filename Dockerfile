@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+LABEL maintainer="face-pj"
+LABEL description="InsightFace ArcFace 人脸识别检索系统"
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -18,16 +21,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
  && pip cache purge
 
+RUN mkdir -p models photos /data && chmod 777 /data photos && \
+    curl -fsSL -o /tmp/buffalo_l.zip \
+    "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip" && \
+    unzip -oq /tmp/buffalo_l.zip -d models/ && \
+    rm /tmp/buffalo_l.zip
+
 COPY . .
 
-RUN mkdir -p models photos && \
-    curl -L -o models/buffalo_l.zip \
-    "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip" && \
-    unzip -o models/buffalo_l.zip -d models/ && \
-    rm models/buffalo_l.zip && \
-    mkdir -p /data && \
-    chmod 777 /data photos
-
+ENV PYTHONUNBUFFERED=1
 ENV DATABASE_URL=sqlite:////data/face_recognition.db
 ENV PHOTOS_DIR=/app/photos
 

@@ -1,13 +1,25 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+
+# SQLite / temp
 *.db
 temp_face.jpg
-*.egg-info/
-.env
+
+# Project dirs (model / photos are in image or mounted volumes)
 photos/
 models/
+
+# VCS
 .git/
 .gitignore
+
+# Docker (don't copy compose into image)
 docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Docs
 *.md
